@@ -62,6 +62,9 @@ export async function onRequest({ request, env }) {
           ],
         },
       ],
+      generationConfig: {
+        responseModalities: ["IMAGE"],
+      },
     };
 
     const response = await fetch(url, {
