@@ -63,7 +63,7 @@ export async function onRequest({ request, env }) {
         },
       ],
       generationConfig: {
-        responseModalities: ["IMAGE"],
+        responseModalities: ["TEXT", "IMAGE"],
       },
     };
 
@@ -82,10 +82,6 @@ export async function onRequest({ request, env }) {
 
     // Extract Image from Response
     // Gemini returns inline data (Base64) or text. We expect an image.
-    // Note: The structure depends on the model's output. 
-    // For image generation models, it might be in candidates[0].content.parts
-    // But gemini-3-pro-image-preview might return text if it's just describing? 
-    // Wait, the docs say "Bildbearbeitung (Text-und-Bild-zu-Bild)" returns an image.
 
     const parts = data.candidates?.[0]?.content?.parts || [];
     let generatedImageBase64 = null;
@@ -101,7 +97,7 @@ export async function onRequest({ request, env }) {
 
     if (!generatedImageBase64) {
       console.error("No image found in Gemini response:", JSON.stringify(data, null, 2));
-      throw new Error("Gemini did not return an image. It might have returned text only.");
+      throw new Error(`Gemini did not return an image. Response: ${JSON.stringify(data)}`);
     }
 
     // Upload to R2
