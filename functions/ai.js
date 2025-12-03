@@ -23,6 +23,7 @@ export async function onRequest({ request, env }) {
     const formData = await request.formData();
     const prompt = formData.get("prompt");
     const imageFile = formData.get("image");
+    const email = formData.get("email");
 
     if (!prompt || !imageFile) {
       return new Response(
@@ -110,7 +111,11 @@ export async function onRequest({ request, env }) {
     }
 
     const extension = generatedMimeType.split("/")[1] || "png";
-    const filename = `gemini_${Date.now()}.${extension}`;
+
+    // Sanitize email and create folder path with _gen suffix
+    const safeEmail = email ? email.replace(/[^a-zA-Z0-9]/g, '_') : null;
+    const folderPath = safeEmail ? `${safeEmail}_gen/` : '';
+    const filename = `${folderPath}gemini_${Date.now()}.${extension}`;
 
     await env.IMAGE_BUCKET.put(filename, bytes, {
       httpMetadata: { contentType: generatedMimeType },
