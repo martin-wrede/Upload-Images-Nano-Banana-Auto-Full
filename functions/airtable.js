@@ -77,8 +77,7 @@ export async function onRequest({ request, env }) {
         if (file instanceof File) {
           // Sanitize email: replace non-alphanumeric characters with underscores
           const safeEmail = email ? email.replace(/[^a-zA-Z0-9]/g, '_') : 'anonymous';
-          const folderPath = `${safeEmail}/`;
-          const key = `${folderPath}${Date.now()}_${file.name}`;
+          const key = `${safeEmail}_${Date.now()}_${file.name}`;
 
           await env.IMAGE_BUCKET.put(key, file.stream());
           const publicUrl = `${env.R2_PUBLIC_URL}/${key}`;
