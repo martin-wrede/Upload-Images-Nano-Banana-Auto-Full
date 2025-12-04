@@ -37,7 +37,14 @@ export async function onRequest({ request, env }) {
 
     console.log("🎨 Processing Image-to-Image with Gemini...");
 
-    // Convert image File to Base64
+    // Get variation count from request
+    const count = parseInt(formData.get("count")) || 1;
+    const validCounts = [1, 2, 4];
+    const variationCount = validCounts.includes(count) ? count : 1;
+
+    console.log(`🎨 Generating ${variationCount} variation(s)...`);
+
+    // Convert image File to Base64 (do this once, reuse for all variations)
     const arrayBuffer = await imageFile.arrayBuffer();
     const base64Image = btoa(
       new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), "")
@@ -64,10 +71,10 @@ export async function onRequest({ request, env }) {
 
     // Gemini API Endpoint
     const GEMINI_API_KEY = env.GEMINI_API_KEY;
-    const MODEL = "gemini-3-pro-image-preview"; // Or "gemini-2.5-flash-image" if preferred/available
+    const MODEL = "gemini-3-pro-image-preview";
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${GEMINI_API_KEY}`;
 
-    // Construct Payload
+    // Construct Payload (reuse for all variations)
     const payload = {
       contents: [
         {
@@ -91,64 +98,78 @@ export async function onRequest({ request, env }) {
       },
     };
 
-    const response = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      console.error("Gemini API Error:", data);
-      throw new Error(data.error?.message || "Failed to generate image with Gemini.");
-    }
-
-    // Extract Image from Response
-    // Gemini returns inline data (Base64) or text. We expect an image.
-
-    const parts = data.candidates?.[0]?.content?.parts || [];
-    let generatedImageBase64 = null;
-    let generatedMimeType = "image/png";
-
-    for (const part of parts) {
-      const inlineData = part.inline_data || part.inlineData;
-      if (inlineData) {
-        generatedImageBase64 = inlineData.data;
-        generatedMimeType = inlineData.mime_type || inlineData.mimeType || "image/png";
-        break;
-      }
-    }
-
-    if (!generatedImageBase64) {
-      console.error("No image found in Gemini response:", JSON.stringify(data, null, 2));
-      throw new Error(`[v4-11:05] Gemini did not return an image. Response: ${JSON.stringify(data)}`);
-    }
-
-    // Upload to R2
-    const binaryString = atob(generatedImageBase64);
-    const len = binaryString.length;
-    const bytes = new Uint8Array(len);
-    for (let i = 0; i < len; i++) {
-      bytes[i] = binaryString.charCodeAt(i);
-    }
-
-    const extension = generatedMimeType.split("/")[1] || "png";
-
-    // Sanitize email and create folder path with _gen suffix
+    // Prepare folder path
     const safeEmail = email ? email.replace(/[^a-zA-Z0-9]/g, '_') : null;
     const folderPath = safeEmail ? `${safeEmail}_gen/` : '';
-    const filename = `${folderPath}gemini_${Date.now()}.${extension}`;
+    const timestamp = Date.now();
 
-    await env.IMAGE_BUCKET.put(filename, bytes, {
-      httpMetadata: { contentType: generatedMimeType },
-    });
+    // Array to store all generated image URLs
+    const generatedImages = [];
 
-    const publicUrl = `${env.R2_PUBLIC_URL}/${filename}`;
-    console.log("✅ Image uploaded to R2:", publicUrl);
+    // Loop to generate variations
+    for (let i = 1; i <= variationCount; i++) {
+      console.log(`🖼️ Generating variation ${i}/${variationCount}...`);
 
-    // Return format matching frontend expectation: { data: [{ url: ... }] }
-    return new Response(JSON.stringify({ data: [{ url: publicUrl }] }), {
+      // Make API call
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        console.error("Gemini API Error:", data);
+        throw new Error(data.error?.message || "Failed to generate image with Gemini.");
+      }
+
+      // Extract Image from Response
+      const parts = data.candidates?.[0]?.content?.parts || [];
+      let generatedImageBase64 = null;
+      let generatedMimeType = "image/png";
+
+      for (const part of parts) {
+        const inlineData = part.inline_data || part.inlineData;
+        if (inlineData) {
+          generatedImageBase64 = inlineData.data;
+          generatedMimeType = inlineData.mime_type || inlineData.mimeType || "image/png";
+          break;
+        }
+      }
+
+      if (!generatedImageBase64) {
+        console.error("No image found in Gemini response:", JSON.stringify(data, null, 2));
+        throw new Error(`Gemini did not return an image for variation ${i}. Response: ${JSON.stringify(data)}`);
+      }
+
+      // Upload to R2
+      const binaryString = atob(generatedImageBase64);
+      const len = binaryString.length;
+      const bytes = new Uint8Array(len);
+      for (let j = 0; j < len; j++) {
+        bytes[j] = binaryString.charCodeAt(j);
+      }
+
+      const extension = generatedMimeType.split("/")[1] || "png";
+
+      // Create filename with numbered suffix only for multiple variations
+      const filename = variationCount === 1
+        ? `${folderPath}gemini_${timestamp}.${extension}`
+        : `${folderPath}gemini_${timestamp}_${i}.${extension}`;
+
+      await env.IMAGE_BUCKET.put(filename, bytes, {
+        httpMetadata: { contentType: generatedMimeType },
+      });
+
+      const publicUrl = `${env.R2_PUBLIC_URL}/${filename}`;
+      generatedImages.push({ url: publicUrl });
+
+      console.log(`✅ Variation ${i} uploaded: ${publicUrl}`);
+    }
+
+    // Return all generated images
+    return new Response(JSON.stringify({ data: generatedImages }), {
       status: 200,
       headers: {
         "Content-Type": "application/json",

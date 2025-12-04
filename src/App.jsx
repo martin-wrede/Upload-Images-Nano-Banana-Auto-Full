@@ -13,7 +13,8 @@ function App() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [files, setFiles] = useState([]);
-  const [result, setResult] = useState(null);
+  const [results, setResults] = useState([]);
+  const [variationCount, setVariationCount] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
 
@@ -91,6 +92,7 @@ function App() {
       formData.append('prompt', prompt);
       formData.append('image', selectedFile);
       formData.append('email', email);
+      formData.append('count', variationCount);
       formData.append('user', 'User123');
       body = formData;
 
@@ -106,15 +108,18 @@ function App() {
       }
 
       const data = await response.json();
-      const imageUrl = data.data?.[0]?.url;
-      console.log("OpenAI Response:", data);
+      const imageUrls = data.data || [];
+      console.log("Gemini Response:", data);
 
-      setResult(imageUrl);
+      setResults(imageUrls);
 
-      if (!imageUrl) throw new Error("Image URL missing in OpenAI response");
+      if (imageUrls.length === 0) throw new Error("No images returned from Gemini");
 
-      // Save to Airtable
-      await saveToAirtable(prompt, imageUrl, 'User123', email, files, currentPackage.column);
+      // Save first image to Airtable
+      const firstImageUrl = imageUrls[0]?.url;
+      if (firstImageUrl) {
+        await saveToAirtable(prompt, firstImageUrl, 'User123', email, files, currentPackage.column);
+      }
 
     } catch (error) {
       console.error("Error generating image:", error);
@@ -215,6 +220,44 @@ function App() {
         </div>
       )}
 
+      <div style={{ marginBottom: '1rem' }}>
+        <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>
+          Number of variations:
+        </label>
+        <div style={{ display: 'flex', gap: '1rem' }}>
+          <label style={{ cursor: 'pointer' }}>
+            <input
+              type="radio"
+              name="variationCount"
+              value={1}
+              checked={variationCount === 1}
+              onChange={(e) => setVariationCount(parseInt(e.target.value))}
+            />
+            {' '}1 image (fast, cheaper)
+          </label>
+          <label style={{ cursor: 'pointer' }}>
+            <input
+              type="radio"
+              name="variationCount"
+              value={2}
+              checked={variationCount === 2}
+              onChange={(e) => setVariationCount(parseInt(e.target.value))}
+            />
+            {' '}2 variations
+          </label>
+          <label style={{ cursor: 'pointer' }}>
+            <input
+              type="radio"
+              name="variationCount"
+              value={4}
+              checked={variationCount === 4}
+              onChange={(e) => setVariationCount(parseInt(e.target.value))}
+            />
+            {' '}4 variations
+          </label>
+        </div>
+      </div>
+
       <textarea
         placeholder="Enter your prompt to modify the image"
         value={prompt}
@@ -239,9 +282,30 @@ function App() {
         {isLoading ? 'Processing...' : 'Modify Image with Gemini'}
       </button>
 
-      {result && (
+      {results.length > 0 && (
         <div style={{ marginTop: '2rem' }}>
-          <img src={result} alt="Generated" style={{ maxWidth: '100%', height: 'auto' }} />
+          <h3>Generated Image{results.length > 1 ? 's' : ''}:</h3>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: results.length === 1 ? '1fr' : 'repeat(2, 1fr)',
+            gap: '1rem',
+            maxWidth: results.length === 1 ? '400px' : '800px'
+          }}>
+            {results.map((img, index) => (
+              <div key={index} style={{ border: '2px solid #ccc', padding: '0.5rem' }}>
+                <img
+                  src={img.url}
+                  alt={`Variation ${index + 1}`}
+                  style={{ width: '100%', height: 'auto' }}
+                />
+                {results.length > 1 && (
+                  <p style={{ textAlign: 'center', margin: '0.5rem 0 0 0' }}>
+                    Variation {index + 1}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
