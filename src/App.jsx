@@ -56,10 +56,19 @@ function App() {
       const filePromises = data.images.map(async (img) => {
         const imgResponse = await fetch(img.url);
         const blob = await imgResponse.blob();
-        return new File([blob], img.filename, { type: blob.type });
+
+        // Ensure mime type is set correctly
+        const mimeType = blob.type || img.url.match(/\.(jpg|jpeg|png|gif|webp)$/i)
+          ? `image/${img.url.match(/\.(jpg|jpeg|png|gif|webp)$/i)[1].replace('jpg', 'jpeg')}`
+          : 'image/jpeg';
+
+        const file = new File([blob], img.filename, { type: mimeType });
+        console.log('📦 Created File:', { name: file.name, size: file.size, type: file.type });
+        return file;
       });
 
       const loadedFiles = await Promise.all(filePromises);
+      console.log(`✅ Loaded ${loadedFiles.length} files:`, loadedFiles.map(f => ({ name: f.name, type: f.type })));
       setFiles(loadedFiles);
       alert(`✅ Loaded ${loadedFiles.length} images from R2 folder`);
 
@@ -91,12 +100,23 @@ function App() {
         return;
       }
 
+      console.log('📤 Preparing to send:');
+      console.log('  - Prompt:', prompt);
+      console.log('  - Selected file:', selectedFile);
+      console.log('  - File details:', {
+        name: selectedFile.name,
+        size: selectedFile.size,
+        type: selectedFile.type
+      });
+
       const formData = new FormData();
       formData.append('prompt', prompt);
       formData.append('image', selectedFile, selectedFile.name);
       formData.append('email', email);
       formData.append('count', variationCount);
       formData.append('user', 'User123');
+
+      console.log('📤 FormData created, sending to /ai...');
       body = formData;
 
       const response = await fetch('/ai', {
