@@ -101,6 +101,11 @@ export async function onRequest({ request, env }) {
       fields.Email = email;
     }
 
+    const orderPackage = formData.get('orderPackage');
+    if (orderPackage) {
+      fields.Order_Package = orderPackage;
+    }
+
     if (uploadedImageUrls.length > 0) {
       fields[uploadColumn] = uploadedImageUrls;
     }

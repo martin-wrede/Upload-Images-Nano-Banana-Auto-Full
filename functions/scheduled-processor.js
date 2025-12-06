@@ -166,6 +166,10 @@ async function processNewRecords(env) {
                                 airtableFormData.append('imageUrl', firstImageUrl);
                                 airtableFormData.append('user', fields.User || 'Automated');
                                 airtableFormData.append('email', fields.Email || '');
+                                const orderPackage = fields.Order_Package || '';
+                                if (orderPackage) {
+                                    airtableFormData.append('orderPackage', orderPackage);
+                                }
                                 airtableFormData.append('uploadColumn', 'Image_Upload2');
 
                                 const airtableResponse = await fetch(`${env.WORKER_URL || 'https://upload-images-nano-banana-auto.pages.dev'}/airtable`, {

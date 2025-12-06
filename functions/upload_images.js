@@ -103,6 +103,11 @@ export async function onRequest({ request, env }) {
             fields[uploadColumn] = uploadedImageUrls;
         }
 
+        const orderPackage = formData.get('orderPackage');
+        if (orderPackage) {
+            fields.Order_Package = orderPackage;
+        }
+
         console.log("Saving upload to Airtable with fields:", JSON.stringify(fields, null, 2));
 
         // Logic: Update if Paid and pending exists
