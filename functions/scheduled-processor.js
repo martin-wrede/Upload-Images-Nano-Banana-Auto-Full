@@ -47,12 +47,11 @@ async function processNewRecords(env) {
         // Fetch records from Airtable (last 24 hours with Order_Package)
         const airtableUrl = `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID1}/${env.AIRTABLE_TABLE_NAME1}`;
 
-        // Filter: Created in last 24h AND has Order_Package AND has Image_Upload AND no Image_Upload2
+        // Filter: Created in last 24h AND has Order_Package
+        // We process images from BOTH Image_Upload and Image_Upload2 fields
         const filterFormula = `AND(
       IS_AFTER({Timestamp}, '${twentyFourHoursAgo}'),
-      {Order_Package} != '',
-      {Image_Upload} != '',
-      OR({Image_Upload2} = BLANK(), {Image_Upload2} = '')
+      {Order_Package} != ''
     )`;
 
         const encodedFormula = encodeURIComponent(filterFormula);
@@ -97,11 +96,17 @@ async function processNewRecords(env) {
             try {
                 console.log(`🔄 Processing record ${recordId} for ${fields.Email}`);
 
-                const imageUpload = fields.Image_Upload || [];
-                if (imageUpload.length === 0) {
-                    console.log(`⏭️ Skipping ${recordId}: No images in Image_Upload`);
+                // Collect images from BOTH Image_Upload and Image_Upload2 fields
+                const imageUpload1 = fields.Image_Upload || [];
+                const imageUpload2 = fields.Image_Upload2 || [];
+                const allImages = [...imageUpload1, ...imageUpload2];
+
+                if (allImages.length === 0) {
+                    console.log(`⏭️ Skipping ${recordId}: No images in Image_Upload or Image_Upload2`);
                     continue;
                 }
+
+                console.log(`📸 Found ${imageUpload1.length} test images + ${imageUpload2.length} bundle images = ${allImages.length} total`);
 
                 results.recordsProcessed++;
 
@@ -113,14 +118,12 @@ async function processNewRecords(env) {
 
                 console.log(`📝 Using prompt: "${finalPrompt}"`);
 
-                const generatedImages = [];
-
                 // Process each image
-                for (let i = 0; i < imageUpload.length; i++) {
-                    const imageUrl = imageUpload[i].url;
-                    const imageFilename = imageUpload[i].filename || `image_${i + 1}.jpg`;
+                for (let i = 0; i < allImages.length; i++) {
+                    const imageUrl = allImages[i].url;
+                    const imageFilename = allImages[i].filename || `image_${i + 1}.jpg`;
 
-                    console.log(`🖼️ Processing image ${i + 1}/${imageUpload.length}: ${imageFilename}`);
+                    console.log(`🖼️ Processing image ${i + 1}/${allImages.length}: ${imageFilename}`);
 
                     try {
                         // Fetch the image
@@ -139,8 +142,8 @@ async function processNewRecords(env) {
                         formData.append('email', fields.Email || 'automated');
                         formData.append('count', variationCount.toString());
 
-                        // Call AI endpoint (internal function call)
-                        const aiResponse = await fetch(`${env.WORKER_URL || 'https://upload-images-nano-banana.pages.dev'}/ai`, {
+                        // Call AI endpoint
+                        const aiResponse = await fetch(`${env.WORKER_URL || 'https://upload-images-nano-banana-auto.pages.dev'}/ai`, {
                             method: 'POST',
                             body: formData,
                         });
@@ -154,8 +157,29 @@ async function processNewRecords(env) {
 
                         console.log(`✅ Generated ${generatedUrls.length} variations for ${imageFilename}`);
 
-                        // Add to results
-                        generatedImages.push(...generatedUrls);
+                        // Save to destination Airtable using existing /airtable endpoint
+                        if (generatedUrls.length > 0) {
+                            const firstImageUrl = generatedUrls[0]?.url;
+                            if (firstImageUrl) {
+                                const airtableFormData = new FormData();
+                                airtableFormData.append('prompt', finalPrompt);
+                                airtableFormData.append('imageUrl', firstImageUrl);
+                                airtableFormData.append('user', fields.User || 'Automated');
+                                airtableFormData.append('email', fields.Email || '');
+                                airtableFormData.append('uploadColumn', 'Image_Upload2');
+
+                                const airtableResponse = await fetch(`${env.WORKER_URL || 'https://upload-images-nano-banana-auto.pages.dev'}/airtable`, {
+                                    method: 'POST',
+                                    body: airtableFormData,
+                                });
+
+                                if (!airtableResponse.ok) {
+                                    console.error(`⚠️ Failed to save to Airtable for ${imageFilename}`);
+                                } else {
+                                    console.log(`💾 Saved to destination Airtable for ${imageFilename}`);
+                                }
+                            }
+                        }
 
                     } catch (imageError) {
                         console.error(`❌ Error processing image ${imageFilename}:`, imageError);
@@ -168,47 +192,15 @@ async function processNewRecords(env) {
                     }
                 }
 
-                // Update Airtable with generated images
-                if (generatedImages.length > 0) {
-                    console.log(`💾 Updating Airtable with ${generatedImages.length} generated images`);
+                results.successCount++;
+                results.details.push({
+                    recordId,
+                    email: fields.Email,
+                    imagesProcessed: allImages.length,
+                    status: 'success'
+                });
 
-                    const updateUrl = `${airtableUrl}/${recordId}`;
-                    const updateResponse = await fetch(updateUrl, {
-                        method: 'PATCH',
-                        headers: {
-                            'Authorization': `Bearer ${env.AIRTABLE_API_KEY}`,
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({
-                            fields: {
-                                Image_Upload2: generatedImages
-                            }
-                        })
-                    });
-
-                    if (!updateResponse.ok) {
-                        throw new Error(`Failed to update Airtable: ${updateResponse.status}`);
-                    }
-
-                    results.successCount++;
-                    results.details.push({
-                        recordId,
-                        email: fields.Email,
-                        imagesProcessed: imageUpload.length,
-                        variationsGenerated: generatedImages.length,
-                        status: 'success'
-                    });
-
-                    console.log(`✅ Successfully processed record ${recordId}`);
-                } else {
-                    results.errorCount++;
-                    results.details.push({
-                        recordId,
-                        email: fields.Email,
-                        status: 'failed',
-                        reason: 'No images generated'
-                    });
-                }
+                console.log(`✅ Successfully processed record ${recordId}`);
 
             } catch (recordError) {
                 console.error(`❌ Error processing record ${recordId}:`, recordError);
@@ -226,8 +218,6 @@ async function processNewRecords(env) {
 
         console.log(`🏁 Processing complete in ${duration}ms`);
         console.log(`📊 Results: ${results.successCount} success, ${results.errorCount} errors`);
-
-        // TODO: Store results in Automation_Logs table
 
         return new Response(JSON.stringify(results), {
             status: 200,

@@ -19,15 +19,15 @@ This system automatically processes new client images from Airtable using Cloudf
 Every 6-24 hours (configurable), the system:
 - Fetches Airtable records from the last 24 hours
 - Filters for records with `Order_Package` field
-- Identifies records with `Image_Upload` but no `Image_Upload2`
+- Processes ALL images from both `Image_Upload` and `Image_Upload2` fields
 
 ### 2. Automatic Processing
 For each qualifying record:
-- Fetches images from `Image_Upload` field
+- Fetches images from BOTH `Image_Upload` (test images) and `Image_Upload2` (bundle images)
 - Combines default prompt + client's custom prompt
 - Processes images with AI (2 variations by default)
 - Uploads results to R2
-- Updates `Image_Upload2` field in Airtable
+- Saves generated images to destination Airtable table (AIRTABLE_BASE_ID / AIRTABLE_TABLE_NAME)
 
 ### 3. Results Tracking
 - Success/error counts
@@ -151,8 +151,7 @@ Use [crontab.guru](https://crontab.guru/) to create custom schedules.
 **Check:**
 - Records exist in Airtable from last 24 hours
 - Records have `Order_Package` field filled
-- Records have `Image_Upload` with images
-- Records have empty `Image_Upload2`
+- Records have images in `Image_Upload` and/or `Image_Upload2`
 
 **Solution:**
 - Review Airtable filter formula in `scheduled-processor.js`
