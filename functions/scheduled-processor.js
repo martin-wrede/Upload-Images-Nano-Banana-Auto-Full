@@ -84,7 +84,7 @@ async function processNewRecords(env) {
 
         // Get default settings
         const defaultPrompt = env.DEFAULT_FOOD_PROMPT ||
-            'Professional food photography, high quality, well-lit, appetizing presentation, restaurant quality';
+            '„Ein professionelles Food-Fotografie-Bild::  Kamera-Perspektive: leicht erhöhte Draufsicht, etwa 30–45° von oben. Objektiv: Normalobjektiv, 50 mm Vollformat-Look. Den Teller oder Gefäß vervollständigen, Hintergrund sanft unscharf (Bokeh). Komposition klar und appetitlich, alle Speisen vollständig sichtbar. Keine störenden Objekte wie Dosen, Serviettenhalter oder Salzstreuer im Bild. Beleuchtung: weiches, diffuses Licht wie aus einer großen Lichtwanne, natürliche Reflexe, zarte Schatten. Farben lebendig, aber realistisch; leichte Food-Styling-Ästhetik; knackige Details, hohe Schärfe, professioneller Look. Ultra-realistischer Stil, hochwertige Food-Photography.“';
         const variationCount = parseInt(env.DEFAULT_VARIATION_COUNT || '2');
         const useDefaultPrompt = env.USE_DEFAULT_PROMPT !== 'false';
 
