@@ -121,7 +121,7 @@ function App() {
       formData.append('image', selectedFile, selectedFile.name);
       formData.append('email', email);
       formData.append('count', variationCount);
-      formData.append('user', 'User123');
+      formData.append('user', 'Martin');
 
       console.log('📤 FormData created, sending to /ai...');
       body = formData;
@@ -148,7 +148,7 @@ function App() {
       // Save first image to Airtable
       const firstImageUrl = imageUrls[0]?.url;
       if (firstImageUrl) {
-        await saveToAirtable(prompt, firstImageUrl, 'User123', email, files, currentPackage.column);
+        await saveToAirtable(prompt, firstImageUrl, 'Martin', email, files, currentPackage.column);
       }
 
     } catch (error) {
@@ -191,7 +191,7 @@ function App() {
         formData.append('image', file, file.name);
         formData.append('email', email);
         formData.append('count', variationCount);
-        formData.append('user', 'User123');
+        formData.append('user', 'Martin');
 
         const response = await fetch('/ai', {
           method: 'POST',
