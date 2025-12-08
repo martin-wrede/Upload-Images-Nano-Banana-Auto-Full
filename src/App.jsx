@@ -97,11 +97,15 @@ function App() {
         return;
       }
 
+      // Prompt is now optional - backend will use default if empty
+      /*
+      /*
       if (!prompt || prompt.trim() === '') {
         alert("Please enter a prompt to describe the modification.");
         setIsLoading(false);
         return;
       }
+      */
 
       console.log('📤 Preparing to send:');
       console.log('  - Prompt:', prompt);
@@ -158,10 +162,13 @@ function App() {
 
   // Modify all images with the same prompt
   const modifyAllImages = async () => {
+    // Prompt is now optional
+    /*
     if (!prompt || prompt.trim() === '') {
       alert("Please enter a prompt to describe the modification.");
       return;
     }
+    */
 
     if (files.length === 0) {
       alert("No images loaded. Please load images first.");
@@ -353,7 +360,7 @@ function App() {
       </div>
 
       <textarea
-        placeholder="Enter your prompt to modify the image"
+        placeholder="Enter your prompt (optional, default will be used)"
         value={prompt}
         onChange={e => setPrompt(e.target.value)}
         disabled={selectedImageIndex === ""}
@@ -380,18 +387,18 @@ function App() {
       {files.length > 1 && (
         <button
           onClick={modifyAllImages}
-          disabled={batchProcessing || !prompt}
-          style={{ 
-            marginLeft: '1rem', 
+          disabled={batchProcessing}
+          style={{
+            marginLeft: '1rem',
             padding: '0.5rem 1rem',
             backgroundColor: '#FF9800',
             color: 'white',
             border: 'none',
-            cursor: batchProcessing || !prompt ? 'not-allowed' : 'pointer',
-            opacity: batchProcessing || !prompt ? 0.6 : 1
+            cursor: batchProcessing ? 'not-allowed' : 'pointer',
+            opacity: batchProcessing ? 0.6 : 1
           }}
         >
-          {batchProcessing 
+          {batchProcessing
             ? `Processing ${batchProgress.current}/${batchProgress.total}...`
             : `🚀 Modify All ${files.length} Images`
           }
@@ -466,9 +473,9 @@ function App() {
             marginTop: '1rem'
           }}>
             {batchResults.map((result, index) => (
-              <div key={index} style={{ 
-                border: '2px solid #FF9800', 
-                padding: '1rem', 
+              <div key={index} style={{
+                border: '2px solid #FF9800',
+                padding: '1rem',
                 borderRadius: '8px',
                 backgroundColor: '#fff'
               }}>
@@ -481,10 +488,10 @@ function App() {
                 {result.error ? (
                   <p style={{ color: 'red', fontSize: '0.9rem' }}>❌ Error: {result.error}</p>
                 ) : (
-                  <div style={{ 
-                    display: 'grid', 
-                    gridTemplateColumns: result.results.length === 1 ? '1fr' : 'repeat(2, 1fr)', 
-                    gap: '0.5rem' 
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: result.results.length === 1 ? '1fr' : 'repeat(2, 1fr)',
+                    gap: '0.5rem'
                   }}>
                     {result.results.map((img, imgIndex) => (
                       <div key={imgIndex}>
