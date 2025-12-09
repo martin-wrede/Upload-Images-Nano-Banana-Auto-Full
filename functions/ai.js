@@ -113,7 +113,7 @@ export async function onRequest({ request, env }) {
       contents: [
         {
           parts: [
-            { text: prompt },
+            { text: "Generate a high-quality food photography image based on this input image and description: " + prompt },
             {
               inline_data: {
                 mime_type: imageFile.type || "image/jpeg",
@@ -168,20 +168,23 @@ export async function onRequest({ request, env }) {
       const parts = data.candidates?.[0]?.content?.parts || [];
       let generatedImageBase64 = null;
       let generatedMimeType = "image/png";
+      let generatedText = "";
 
       for (const part of parts) {
         const inlineData = part.inline_data || part.inlineData;
         if (inlineData) {
           generatedImageBase64 = inlineData.data;
           generatedMimeType = inlineData.mime_type || inlineData.mimeType || "image/png";
-          break;
+        }
+        if (part.text) {
+          generatedText += part.text;
         }
       }
 
       if (!generatedImageBase64) {
         console.error("No image found in Gemini response:", JSON.stringify(data, null, 2));
         const finishReason = data.candidates?.[0]?.finishReason || 'Unknown';
-        throw new Error(`Gemini did not return an image for variation ${i}. Finish Reason: ${finishReason}`);
+        throw new Error(`Gemini did not return an image for variation ${i}. Finish Reason: ${finishReason}. Response Text: ${generatedText.substring(0, 200)}`);
       }
 
       // Upload to R2
