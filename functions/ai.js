@@ -130,6 +130,12 @@ export async function onRequest({ request, env }) {
           imageSize: "2K",
         },
       },
+      safetySettings: [
+        { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+        { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+        { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+        { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
+      ]
     };
 
     // Prepare folder path
@@ -174,7 +180,8 @@ export async function onRequest({ request, env }) {
 
       if (!generatedImageBase64) {
         console.error("No image found in Gemini response:", JSON.stringify(data, null, 2));
-        throw new Error(`Gemini did not return an image for variation ${i}. Response: ${JSON.stringify(data)}`);
+        const finishReason = data.candidates?.[0]?.finishReason || 'Unknown';
+        throw new Error(`Gemini did not return an image for variation ${i}. Finish Reason: ${finishReason}`);
       }
 
       // Upload to R2

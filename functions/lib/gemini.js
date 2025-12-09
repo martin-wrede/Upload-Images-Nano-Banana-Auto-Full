@@ -49,6 +49,12 @@ export async function generateImageVariations(env, imageFile, prompt, count = 2,
                 imageSize: "2K",
             },
         },
+        safetySettings: [
+            { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+            { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+            { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+            { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
+        ]
     };
 
     const safeEmail = email ? email.replace(/[^a-zA-Z0-9]/g, '_') : 'anonymous';
@@ -69,7 +75,7 @@ export async function generateImageVariations(env, imageFile, prompt, count = 2,
 
         if (!response.ok) {
             console.error(`Gemini API Failed: ${response.status} ${response.statusText}`);
-            console.error("Gemini Error Body:", data);
+            console.error("Gemini Error Body:", JSON.stringify(data, null, 2));
             throw new Error(`Gemini API Error: ${response.status} - ${data.error?.message || response.statusText}`);
         }
 
@@ -87,7 +93,9 @@ export async function generateImageVariations(env, imageFile, prompt, count = 2,
         }
 
         if (!generatedImageBase64) {
-            throw new Error(`Gemini did not return an image for variation ${i}`);
+            console.error("❌ No image found in Gemini response:", JSON.stringify(data, null, 2));
+            const finishReason = data.candidates?.[0]?.finishReason || 'Unknown';
+            throw new Error(`Gemini did not return an image for variation ${i}. Finish Reason: ${finishReason}`);
         }
 
         // Upload to R2
