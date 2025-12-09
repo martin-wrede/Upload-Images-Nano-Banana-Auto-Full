@@ -86,9 +86,10 @@ export async function generateImageVariations(env, imageFile, prompt, count = 2,
         let generatedText = "";
 
         for (const part of parts) {
-            if (part.inline_data) {
-                generatedImageBase64 = part.inline_data.data;
-                generatedMimeType = part.inline_data.mime_type;
+            const inlineData = part.inline_data || part.inlineData;
+            if (inlineData) {
+                generatedImageBase64 = inlineData.data;
+                generatedMimeType = inlineData.mime_type || inlineData.mimeType || "image/png";
             }
             if (part.text) {
                 generatedText += part.text;
