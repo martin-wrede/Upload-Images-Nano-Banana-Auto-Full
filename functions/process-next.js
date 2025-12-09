@@ -46,8 +46,23 @@ export async function onRequest({ request, env }) {
         const allGeneratedLinks = [];
 
         for (const img of allImages) {
-            console.log(`🖼️ Fetching ${img.url}...`);
-            const imageResponse = await fetch(img.url);
+            console.log(`🖼️ Fetching source image: ${img.url}`);
+            if (!img.url) {
+                console.error("❌ Image URL is missing for record", record.id);
+                continue;
+            }
+
+            let imageResponse;
+            try {
+                imageResponse = await fetch(img.url);
+            } catch (err) {
+                throw new Error(`Failed to fetch source image at ${img.url}: ${err.message}`);
+            }
+
+            if (!imageResponse.ok) {
+                throw new Error(`Failed to download source image ${img.url}: ${imageResponse.status} ${imageResponse.statusText}`);
+            }
+
             const imageBlob = await imageResponse.blob();
             const imageFile = new File([imageBlob], img.filename || 'image.jpg', { type: imageBlob.type });
 

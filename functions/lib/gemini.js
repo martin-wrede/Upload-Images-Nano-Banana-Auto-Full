@@ -68,8 +68,9 @@ export async function generateImageVariations(env, imageFile, prompt, count = 2,
         const data = await response.json();
 
         if (!response.ok) {
-            console.error("Gemini API Error:", data);
-            throw new Error(data.error?.message || "Failed to generate image with Gemini.");
+            console.error(`Gemini API Failed: ${response.status} ${response.statusText}`);
+            console.error("Gemini Error Body:", data);
+            throw new Error(`Gemini API Error: ${response.status} - ${data.error?.message || response.statusText}`);
         }
 
         // Extract Image
