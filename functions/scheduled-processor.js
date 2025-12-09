@@ -1,5 +1,6 @@
 // functions/scheduled-processor.js
 // Cloudflare Cron Trigger worker for automated image processing
+import { generateImageVariations } from './lib/gemini';
 
 export async function onRequest({ request, env }) {
     // Handle manual trigger via HTTP POST
@@ -135,25 +136,8 @@ async function processNewRecords(env) {
                         const imageBlob = await imageResponse.blob();
                         const imageFile = new File([imageBlob], imageFilename, { type: imageBlob.type });
 
-                        // Create FormData for AI processing
-                        const formData = new FormData();
-                        formData.append('prompt', finalPrompt);
-                        formData.append('image', imageFile);
-                        formData.append('email', fields.Email || 'automated');
-                        formData.append('count', variationCount.toString());
-
-                        // Call AI endpoint
-                        const aiResponse = await fetch(`${env.WORKER_URL || 'https://upload-images-nano-banana-auto.pages.dev'}/ai`, {
-                            method: 'POST',
-                            body: formData,
-                        });
-
-                        if (!aiResponse.ok) {
-                            throw new Error(`AI processing failed: ${aiResponse.status}`);
-                        }
-
-                        const aiData = await aiResponse.json();
-                        const generatedUrls = aiData.data || [];
+                        // Call AI generation internally (no HTTP fetch to self)
+                        const generatedUrls = await generateImageVariations(env, imageFile, finalPrompt, variationCount.toString(), fields.Email);
 
                         console.log(`✅ Generated ${generatedUrls.length} variations for ${imageFilename}`);
 
