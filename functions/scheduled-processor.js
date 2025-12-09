@@ -1,6 +1,7 @@
 // functions/scheduled-processor.js
 // Cloudflare Cron Trigger worker for automated image processing
 import { generateImageVariations } from './lib/gemini';
+import { updateRecord } from './lib/airtable';
 
 export async function onRequest({ request, env }) {
     // Handle manual trigger via HTTP POST
@@ -141,31 +142,15 @@ async function processNewRecords(env) {
 
                         console.log(`✅ Generated ${generatedUrls.length} variations for ${imageFilename}`);
 
-                        // Save to destination Airtable using existing /airtable endpoint
+                        // Save to destination Airtable using lib/airtable (Update ID1)
                         if (generatedUrls.length > 0) {
                             const firstImageUrl = generatedUrls[0]?.url;
                             if (firstImageUrl) {
-                                const airtableFormData = new FormData();
-                                airtableFormData.append('prompt', finalPrompt);
-                                airtableFormData.append('imageUrl', firstImageUrl);
-                                airtableFormData.append('user', fields.User || 'Automated');
-                                airtableFormData.append('email', fields.Email || '');
-                                const orderPackage = fields.Order_Package || '';
-                                if (orderPackage) {
-                                    airtableFormData.append('orderPackage', orderPackage);
-                                }
-                                airtableFormData.append('uploadColumn', 'Image_Upload2');
-
-                                const airtableResponse = await fetch(`${env.WORKER_URL || 'https://upload-images-nano-banana-auto.pages.dev'}/airtable`, {
-                                    method: 'POST',
-                                    body: airtableFormData,
+                                // We update the record with the new image
+                                await updateRecord(env, recordId, {
+                                    Image_Upload2: [{ url: firstImageUrl }]
                                 });
-
-                                if (!airtableResponse.ok) {
-                                    console.error(`⚠️ Failed to save to Airtable for ${imageFilename}`);
-                                } else {
-                                    console.log(`💾 Saved to destination Airtable for ${imageFilename}`);
-                                }
+                                console.log(`💾 Saved to destination Airtable (ID1) for ${imageFilename}`);
                             }
                         }
 
