@@ -167,7 +167,7 @@ async function processNewRecords(env) {
                 // Save to destination Airtable using lib/airtable (Update ID1) ONCE per record
                 if (allGeneratedAttachments.length > 0) {
                     await updateRecord(env, recordId, {
-                        Image_Upload2: allGeneratedAttachments
+                        Image: allGeneratedAttachments
                     });
                     console.log(`💾 Saved ${allGeneratedAttachments.length} images to destination Airtable (ID1) for record ${recordId}`);
                 }
