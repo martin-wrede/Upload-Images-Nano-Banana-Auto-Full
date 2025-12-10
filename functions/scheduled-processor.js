@@ -120,6 +120,8 @@ async function processNewRecords(env) {
 
                 console.log(`📝 Using prompt: "${finalPrompt}"`);
 
+                const allGeneratedAttachments = [];
+
                 // Process each image
                 for (let i = 0; i < allImages.length; i++) {
                     const imageUrl = allImages[i].url;
@@ -142,16 +144,13 @@ async function processNewRecords(env) {
 
                         console.log(`✅ Generated ${generatedUrls.length} variations for ${imageFilename}`);
 
-                        // Save to destination Airtable using lib/airtable (Update ID1)
+                        // Accumulate all generated URLs
                         if (generatedUrls.length > 0) {
-                            const firstImageUrl = generatedUrls[0]?.url;
-                            if (firstImageUrl) {
-                                // We update the record with the new image
-                                await updateRecord(env, recordId, {
-                                    Image_Upload2: [{ url: firstImageUrl }]
-                                });
-                                console.log(`💾 Saved to destination Airtable (ID1) for ${imageFilename}`);
-                            }
+                            generatedUrls.forEach(img => {
+                                if (img.url) {
+                                    allGeneratedAttachments.push({ url: img.url });
+                                }
+                            });
                         }
 
                     } catch (imageError) {
@@ -163,6 +162,14 @@ async function processNewRecords(env) {
                             error: imageError.message
                         });
                     }
+                }
+
+                // Save to destination Airtable using lib/airtable (Update ID1) ONCE per record
+                if (allGeneratedAttachments.length > 0) {
+                    await updateRecord(env, recordId, {
+                        Image_Upload2: allGeneratedAttachments
+                    });
+                    console.log(`💾 Saved ${allGeneratedAttachments.length} images to destination Airtable (ID1) for record ${recordId}`);
                 }
 
                 results.successCount++;
