@@ -208,13 +208,18 @@ async function processNewRecords(env) {
                     const htmlUrl = `${env.R2_PUBLIC_URL}/${htmlFilename}`;
                     console.log(`📄 Generated Download Page: ${htmlUrl}`);
 
-                    // Add HTML page to attachments
-                    allGeneratedAttachments.push({ url: htmlUrl });
+                    // Add HTML page to attachments (optional, keep if user wants file too, but mainly we want the link)
+                    // allGeneratedAttachments.push({ url: htmlUrl }); 
+                    // User seems to prefer a link, so we won't add it to 'Image' as attachment to avoid confusion if they want clean images.
+                    // But wait, user said "Image field... Is it an attachment now?".
+                    // I will add the LINK to 'Download_Link' field.
+                    // I will KEEP the images in 'Image' field.
 
                     await updateRecord(env, recordId, {
-                        Image: allGeneratedAttachments
+                        Image: allGeneratedAttachments,
+                        Download_Link: htmlUrl
                     });
-                    console.log(`💾 Saved ${allGeneratedAttachments.length} items (images + download page) to destination Airtable (ID1) for record ${recordId}`);
+                    console.log(`💾 Saved images and Download Link to destination Airtable (ID1) for record ${recordId}`);
                 }
 
                 results.successCount++;
