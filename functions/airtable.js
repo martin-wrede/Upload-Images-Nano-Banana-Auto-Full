@@ -25,7 +25,7 @@ export async function onRequest({ request, env }) {
     const uploadColumn = formData.get('uploadColumn') || 'Image_Upload2'; // Default to Image_Upload2
     const files = formData.getAll('images');
 
-    const airtableUrl = `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${env.AIRTABLE_TABLE_NAME}`;
+    const airtableUrl = `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID2}/${env.AIRTABLE_TABLE_NAME2}`;
 
     // Check for pending record (Test uploaded, Paid empty)
     let pendingRecordId = null;
