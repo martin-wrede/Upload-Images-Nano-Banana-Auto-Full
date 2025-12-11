@@ -205,7 +205,9 @@ async function processNewRecords(env) {
                     await env.IMAGE_BUCKET.put(htmlFilename, htmlContent, {
                         httpMetadata: { contentType: "text/html" },
                     });
-                    const htmlUrl = `${env.R2_PUBLIC_URL}/${htmlFilename}`;
+
+                    const baseUrl = env.R2_PUBLIC_URL || "https://pub-2e08632872a645f89f91aad5f2904c70.r2.dev";
+                    const htmlUrl = `${baseUrl}/${htmlFilename}`;
                     console.log(`📄 Generated Download Page: ${htmlUrl}`);
 
                     // Add HTML page to attachments (optional, keep if user wants file too, but mainly we want the link)
