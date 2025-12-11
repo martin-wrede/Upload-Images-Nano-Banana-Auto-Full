@@ -166,10 +166,55 @@ async function processNewRecords(env) {
 
                 // Save to destination Airtable using lib/airtable (Update ID1) ONCE per record
                 if (allGeneratedAttachments.length > 0) {
+
+                    // Generate HTML Download Page
+                    const safeEmail = fields.Email ? fields.Email.replace(/[^a-zA-Z0-9]/g, '_') : 'anonymous';
+                    const timestamp = Date.now();
+                    const htmlContent = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Your Generated Images</title>
+    <style>
+        body { font-family: sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        .gallery { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; }
+        .image-card { border: 1px solid #ddd; padding: 10px; border-radius: 8px; text-align: center; }
+        img { max-width: 100%; height: auto; border-radius: 4px; }
+        .download-btn { display: inline-block; margin-top: 10px; padding: 8px 16px; background: #007bff; color: white; text-decoration: none; border-radius: 4px; }
+        .download-btn:hover { background: #0056b3; }
+    </style>
+</head>
+<body>
+    <h1>Your Generated Images</h1>
+    <p>Here are your optimized images. Click "Download" to save them.</p>
+    <div class="gallery">
+        ${allGeneratedAttachments.map((img, idx) => `
+            <div class="image-card">
+                <img src="${img.url}" alt="Generated Image ${idx + 1}" loading="lazy">
+                <br>
+                <a href="${img.url}" class="download-btn" download>Download Image ${idx + 1}</a>
+            </div>
+        `).join('')}
+    </div>
+</body>
+</html>`;
+
+                    const htmlFilename = `${safeEmail}_gen/download_${timestamp}.html`;
+                    await env.IMAGE_BUCKET.put(htmlFilename, htmlContent, {
+                        httpMetadata: { contentType: "text/html" },
+                    });
+                    const htmlUrl = `${env.R2_PUBLIC_URL}/${htmlFilename}`;
+                    console.log(`📄 Generated Download Page: ${htmlUrl}`);
+
+                    // Add HTML page to attachments
+                    allGeneratedAttachments.push({ url: htmlUrl });
+
                     await updateRecord(env, recordId, {
                         Image: allGeneratedAttachments
                     });
-                    console.log(`💾 Saved ${allGeneratedAttachments.length} images to destination Airtable (ID1) for record ${recordId}`);
+                    console.log(`💾 Saved ${allGeneratedAttachments.length} items (images + download page) to destination Airtable (ID1) for record ${recordId}`);
                 }
 
                 results.successCount++;

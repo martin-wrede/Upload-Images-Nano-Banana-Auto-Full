@@ -33,7 +33,7 @@ export async function generateImageVariations(env, imageFile, prompt, count = 2,
     const payload = {
         contents: [{
             parts: [
-                { text: "Generate a high-quality food photography image based on this input image and description: " + prompt },
+                { text: "Generate a high-quality food photography image based on this input image and description. Output parameters: Resolution 1920x1080 (Full HD), Format JPEG. Description: " + prompt },
                 {
                     inline_data: {
                         mime_type: imageFile.type || "image/jpeg",
@@ -82,14 +82,15 @@ export async function generateImageVariations(env, imageFile, prompt, count = 2,
         // Extract Image
         const parts = data.candidates?.[0]?.content?.parts || [];
         let generatedImageBase64 = null;
-        let generatedMimeType = "image/png";
+        let generatedMimeType = "image/jpeg"; // Default to JPEG
         let generatedText = "";
 
         for (const part of parts) {
             const inlineData = part.inline_data || part.inlineData;
             if (inlineData) {
                 generatedImageBase64 = inlineData.data;
-                generatedMimeType = inlineData.mime_type || inlineData.mimeType || "image/png";
+                // We will force save as JPEG regardless, but good to know
+                // generatedMimeType = inlineData.mime_type || inlineData.mimeType || "image/jpeg";
             }
             if (part.text) {
                 generatedText += part.text;
@@ -105,14 +106,14 @@ export async function generateImageVariations(env, imageFile, prompt, count = 2,
         // Upload to R2
         const binaryString = atob(generatedImageBase64);
         const bytes = Uint8Array.from(binaryString, c => c.charCodeAt(0));
-        const extension = generatedMimeType.split("/")[1] || "png";
+        const extension = "jpg"; // Force jpg extension
 
         const filename = variationCount === 1
             ? `${folderPath}gemini_${timestamp}.${extension}`
             : `${folderPath}gemini_${timestamp}_${i}.${extension}`;
 
         await env.IMAGE_BUCKET.put(filename, bytes, {
-            httpMetadata: { contentType: generatedMimeType },
+            httpMetadata: { contentType: "image/jpeg" },
         });
 
         const publicUrl = `${env.R2_PUBLIC_URL}/${filename}`;
