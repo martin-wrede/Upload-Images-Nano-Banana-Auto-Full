@@ -15,9 +15,15 @@ function AdminAutomation() {
     const [lastRun, setLastRun] = useState(null);
     const [processingResults, setProcessingResults] = useState(null);
 
+    // Client prompts state
+    const [clientRecords, setClientRecords] = useState([]);
+    const [loadingClients, setLoadingClients] = useState(false);
+    const [editingPrompt, setEditingPrompt] = useState(null);
+
     // Load configuration on mount
     useEffect(() => {
         loadConfig();
+        loadClients();
     }, []);
 
     const loadConfig = async () => {
@@ -31,6 +37,69 @@ function AdminAutomation() {
     const saveConfig = () => {
         localStorage.setItem('automationConfig', JSON.stringify(config));
         alert('✅ Configuration saved!');
+    };
+
+    const loadClients = async () => {
+        setLoadingClients(true);
+        try {
+            // Fetch last 24 hours of records with prompts
+            const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+            const response = await fetch('/api/get-client-records', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ since: twentyFourHoursAgo })
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                // Add active state to each record (default true)
+                const recordsWithState = data.records.map(record => ({
+                    ...record,
+                    active: record.fields.Active !== false // default true unless explicitly false
+                }));
+                setClientRecords(recordsWithState);
+            } else {
+                console.error('Failed to load client records');
+            }
+        } catch (error) {
+            console.error('Error loading clients:', error);
+        } finally {
+            setLoadingClients(false);
+        }
+    };
+
+    const updateClientPrompt = async (recordId, newPrompt) => {
+        try {
+            const response = await fetch('/api/update-client-prompt', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ recordId, prompt: newPrompt })
+            });
+
+            if (response.ok) {
+                // Update local state
+                setClientRecords(prev => prev.map(record => 
+                    record.id === recordId 
+                        ? { ...record, fields: { ...record.fields, Prompt: newPrompt } }
+                        : record
+                ));
+                setEditingPrompt(null);
+                alert('✅ Client prompt updated!');
+            } else {
+                alert('❌ Failed to update prompt');
+            }
+        } catch (error) {
+            console.error('Error updating prompt:', error);
+            alert('❌ Error updating prompt: ' + error.message);
+        }
+    };
+
+    const toggleClientActive = (recordId) => {
+        setClientRecords(prev => prev.map(record => 
+            record.id === recordId 
+                ? { ...record, active: !record.active }
+                : record
+        ));
     };
 
     const manualTrigger = async () => {
@@ -184,6 +253,170 @@ function AdminAutomation() {
                 >
                     💾 Save Configuration
                 </button>
+            </div>
+
+            {/* Client Prompts Management */}
+            <div style={{ marginBottom: '2rem', padding: '1.5rem', border: '2px solid #9C27B0', borderRadius: '8px', backgroundColor: '#F3E5F5' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                    <h2 style={{ margin: 0 }}>📄 Client Prompts (Last 24h)</h2>
+                    <button
+                        onClick={loadClients}
+                        disabled={loadingClients}
+                        style={{
+                            padding: '0.5rem 1rem',
+                            backgroundColor: loadingClients ? '#ccc' : '#9C27B0',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: loadingClients ? 'not-allowed' : 'pointer',
+                            fontSize: '0.9rem'
+                        }}
+                    >
+                        {loadingClients ? '⏳ Loading...' : '🔄 Refresh'}
+                    </button>
+                </div>
+
+                {loadingClients ? (
+                    <div style={{ textAlign: 'center', padding: '2rem', color: '#666' }}>
+                        Loading client records...
+                    </div>
+                ) : clientRecords.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '2rem', color: '#666', backgroundColor: 'white', borderRadius: '4px' }}>
+                        No client records found in the last 24 hours.
+                    </div>
+                ) : (
+                    <div style={{ maxHeight: '500px', overflowY: 'auto' }}>
+                        {clientRecords.map((record) => (
+                            <div
+                                key={record.id}
+                                style={{
+                                    padding: '1rem',
+                                    marginBottom: '1rem',
+                                    backgroundColor: 'white',
+                                    borderRadius: '8px',
+                                    border: `2px solid ${record.active ? '#9C27B0' : '#ccc'}`,
+                                    opacity: record.active ? 1 : 0.6
+                                }}
+                            >
+                                {/* Header with email and toggle */}
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                        <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                                            <input
+                                                type="checkbox"
+                                                checked={record.active}
+                                                onChange={() => toggleClientActive(record.id)}
+                                                style={{ width: '18px', height: '18px', marginRight: '0.5rem' }}
+                                            />
+                                            <strong style={{ fontSize: '1rem' }}>{record.fields.Email}</strong>
+                                        </label>
+                                        <span style={{ fontSize: '0.85rem', color: '#666' }}>
+                                            ({record.active ? '✅ Active' : '❌ Inactive'})
+                                        </span>
+                                    </div>
+                                    <span style={{ fontSize: '0.75rem', color: '#999' }}>
+                                        {record.fields.Timestamp ? new Date(record.fields.Timestamp).toLocaleDateString() : 'N/A'}
+                                    </span>
+                                </div>
+
+                                {/* Prompt editor */}
+                                <div style={{ marginTop: '0.5rem' }}>
+                                    <label style={{ display: 'block', fontWeight: 'bold', fontSize: '0.9rem', marginBottom: '0.5rem', color: '#9C27B0' }}>
+                                        Client Prompt:
+                                    </label>
+                                    {editingPrompt === record.id ? (
+                                        <div>
+                                            <textarea
+                                                defaultValue={record.fields.Prompt || ''}
+                                                id={`prompt-${record.id}`}
+                                                rows={3}
+                                                style={{
+                                                    width: '100%',
+                                                    padding: '0.5rem',
+                                                    fontSize: '0.9rem',
+                                                    borderRadius: '4px',
+                                                    border: '2px solid #9C27B0',
+                                                    fontFamily: 'Arial, sans-serif'
+                                                }}
+                                                placeholder="Enter client's custom prompt..."
+                                            />
+                                            <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+                                                <button
+                                                    onClick={() => {
+                                                        const newPrompt = document.getElementById(`prompt-${record.id}`).value;
+                                                        updateClientPrompt(record.id, newPrompt);
+                                                    }}
+                                                    style={{
+                                                        padding: '0.5rem 1rem',
+                                                        backgroundColor: '#4CAF50',
+                                                        color: 'white',
+                                                        border: 'none',
+                                                        borderRadius: '4px',
+                                                        cursor: 'pointer',
+                                                        fontSize: '0.85rem'
+                                                    }}
+                                                >
+                                                    ✅ Save
+                                                </button>
+                                                <button
+                                                    onClick={() => setEditingPrompt(null)}
+                                                    style={{
+                                                        padding: '0.5rem 1rem',
+                                                        backgroundColor: '#999',
+                                                        color: 'white',
+                                                        border: 'none',
+                                                        borderRadius: '4px',
+                                                        cursor: 'pointer',
+                                                        fontSize: '0.85rem'
+                                                    }}
+                                                >
+                                                    ❌ Cancel
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div>
+                                            <div
+                                                style={{
+                                                    padding: '0.75rem',
+                                                    backgroundColor: '#f5f5f5',
+                                                    borderRadius: '4px',
+                                                    fontSize: '0.9rem',
+                                                    fontStyle: record.fields.Prompt ? 'normal' : 'italic',
+                                                    color: record.fields.Prompt ? '#333' : '#999',
+                                                    minHeight: '60px',
+                                                    whiteSpace: 'pre-wrap',
+                                                    wordBreak: 'break-word'
+                                                }}
+                                            >
+                                                {record.fields.Prompt || 'No custom prompt set'}
+                                            </div>
+                                            <button
+                                                onClick={() => setEditingPrompt(record.id)}
+                                                style={{
+                                                    marginTop: '0.5rem',
+                                                    padding: '0.5rem 1rem',
+                                                    backgroundColor: '#9C27B0',
+                                                    color: 'white',
+                                                    border: 'none',
+                                                    borderRadius: '4px',
+                                                    cursor: 'pointer',
+                                                    fontSize: '0.85rem'
+                                                }}
+                                            >
+                                                ✏️ Edit Prompt
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+
+                <p style={{ fontSize: '0.85rem', color: '#666', marginTop: '1rem', marginBottom: 0 }}>
+                    ℹ️ <strong>Note:</strong> Use the checkbox to activate/deactivate each client. Only active clients will be processed during automation.
+                </p>
             </div>
 
             {/* Manual Control */}
