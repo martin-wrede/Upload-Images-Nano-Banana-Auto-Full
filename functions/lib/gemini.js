@@ -1,3 +1,13 @@
+export const IMAGE_CONFIG = {
+    // Target resolution for the generated images (Gemini input prompt)
+    width: 1920,
+    height: 1080,
+    // Quality hint for the prompt (e.g., "High Quality", "Efficient Compression")
+    qualityHint: "High Quality, Efficient JPEG",
+    // Folder suffix for the downloadable images
+    folderSuffix: '_down'
+};
+
 export async function generateImageVariations(env, imageFile, prompt, count = 2, email = null) {
     console.log("🎨 Processing Image-to-Image with Gemini...");
 
@@ -10,16 +20,12 @@ export async function generateImageVariations(env, imageFile, prompt, count = 2,
         new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), "")
     );
 
-    // Detect image orientation (same logic as before)
+    // Detect image orientation (simple check)
     let aspectRatio = "16:9";
     try {
         const uint8Array = new Uint8Array(arrayBuffer);
-        let width = 0, height = 0;
-        // Simple header check for JPEG/PNG/GIF/WebP (abbreviated for brevity, assuming similar logic to original ai.js if needed, or default to 16:9)
-        // For now, defaulting to 16:9 or inferring from simple checks if critical.
-        // Keeping it simple:
         if (uint8Array.length > 20) {
-            // logic from original file could be injected here if needed
+            // Placeholder for real orientation check if needed
         }
     } catch (e) {
         console.warn("Aspect ratio check failed, using default");
@@ -30,10 +36,15 @@ export async function generateImageVariations(env, imageFile, prompt, count = 2,
     const MODEL = "gemini-3-pro-image-preview";
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${GEMINI_API_KEY}`;
 
+    // Construct precise prompt with config
+    const resolutionText = `Resolution ${IMAGE_CONFIG.width}x${IMAGE_CONFIG.height}`;
+    const qualityText = IMAGE_CONFIG.qualityHint;
+    const fullSystemPrompt = `Generate a food photography image based on input. Output parameters: ${resolutionText}, ${qualityText}, Format JPEG. Description: ${prompt}`;
+
     const payload = {
         contents: [{
             parts: [
-                { text: "Generate a high-quality food photography image based on this input image and description. Output parameters: Resolution 1920x1080 (Full HD), Format JPEG. Description: " + prompt },
+                { text: fullSystemPrompt },
                 {
                     inline_data: {
                         mime_type: imageFile.type || "image/jpeg",
@@ -45,8 +56,8 @@ export async function generateImageVariations(env, imageFile, prompt, count = 2,
         generationConfig: {
             responseModalities: ["TEXT", "IMAGE"],
             imageConfig: {
-                aspectRatio: aspectRatio, // In real implementation, pass the detected ratio
-                imageSize: "2K",
+                aspectRatio: aspectRatio,
+                imageSize: "2K", // Requesting high res base
             },
         },
         safetySettings: [
@@ -58,7 +69,11 @@ export async function generateImageVariations(env, imageFile, prompt, count = 2,
     };
 
     const safeEmail = email ? email.replace(/[^a-zA-Z0-9]/g, '_') : 'anonymous';
-    const folderPath = safeEmail ? `${safeEmail}_gen/` : '';
+    // Original generation folder
+    const genFolderPath = safeEmail ? `${safeEmail}_gen/` : '';
+    // Downloadable folder
+    const downFolderPath = safeEmail ? `${safeEmail}${IMAGE_CONFIG.folderSuffix}/` : `anonymous${IMAGE_CONFIG.folderSuffix}/`;
+
     const timestamp = Date.now();
     const generatedImages = [];
 
@@ -82,15 +97,12 @@ export async function generateImageVariations(env, imageFile, prompt, count = 2,
         // Extract Image
         const parts = data.candidates?.[0]?.content?.parts || [];
         let generatedImageBase64 = null;
-        let generatedMimeType = "image/jpeg"; // Default to JPEG
         let generatedText = "";
 
         for (const part of parts) {
             const inlineData = part.inline_data || part.inlineData;
             if (inlineData) {
                 generatedImageBase64 = inlineData.data;
-                // We will force save as JPEG regardless, but good to know
-                // generatedMimeType = inlineData.mime_type || inlineData.mimeType || "image/jpeg";
             }
             if (part.text) {
                 generatedText += part.text;
@@ -100,25 +112,36 @@ export async function generateImageVariations(env, imageFile, prompt, count = 2,
         if (!generatedImageBase64) {
             console.error("❌ No image found in Gemini response:", JSON.stringify(data, null, 2));
             const finishReason = data.candidates?.[0]?.finishReason || 'Unknown';
-            throw new Error(`Gemini did not return an image for variation ${i}. Finish Reason: ${finishReason}. Response Text: ${generatedText.substring(0, 200)}`);
+            throw new Error(`Gemini did not return an image for variation ${i}. Finish Reason: ${finishReason}.`);
         }
 
         // Upload to R2
         const binaryString = atob(generatedImageBase64);
         const bytes = Uint8Array.from(binaryString, c => c.charCodeAt(0));
-        const extension = "jpg"; // Force jpg extension
+        const extension = "jpg";
 
-        const filename = variationCount === 1
-            ? `${folderPath}gemini_${timestamp}.${extension}`
-            : `${folderPath}gemini_${timestamp}_${i}.${extension}`;
+        // 1. Save Original to _gen (Backup/Reference)
+        const filenameGen = variationCount === 1
+            ? `${genFolderPath}gemini_${timestamp}.${extension}`
+            : `${genFolderPath}gemini_${timestamp}_${i}.${extension}`;
 
-        await env.IMAGE_BUCKET.put(filename, bytes, {
+        await env.IMAGE_BUCKET.put(filenameGen, bytes, {
+            httpMetadata: { contentType: "image/jpeg" },
+        });
+        console.log(`✅ Saved backup to: ${filenameGen}`);
+
+        // 2. Save Copy to _down (Downloadable)
+        const filenameDown = variationCount === 1
+            ? `${downFolderPath}image_${timestamp}.${extension}`
+            : `${downFolderPath}image_${timestamp}_${i}.${extension}`;
+
+        await env.IMAGE_BUCKET.put(filenameDown, bytes, {
             httpMetadata: { contentType: "image/jpeg" },
         });
 
-        const publicUrl = `${env.R2_PUBLIC_URL}/${filename}`;
-        generatedImages.push({ url: publicUrl });
-        console.log(`✅ Variation ${i} uploaded: ${publicUrl}`);
+        const publicUrl = `${env.R2_PUBLIC_URL}/${filenameDown}`;
+        generatedImages.push({ url: publicUrl }); // Return the DOWNLOAD url
+        console.log(`✅ Variation ${i} uploaded to Download folder: ${publicUrl}`);
     }
 
     return generatedImages;
