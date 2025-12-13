@@ -1,5 +1,3 @@
-import { Image } from 'imagescript';
-
 export const IMAGE_CONFIG = {
     // Target resolution for the downloadable images
     width: 1920,
@@ -135,16 +133,27 @@ export async function generateImageVariations(env, imageFile, prompt, count = 2,
 
         // 2. Resize/Compress for _down (Downloadable)
         let processedBytes = bytes;
+        try {
+            console.log(`📐 Resizing to ${IMAGE_CONFIG.width}x${IMAGE_CONFIG.height} @ ${IMAGE_CONFIG.quality}% quality...`);
 
-        console.log(`📐 Resizing to ${IMAGE_CONFIG.width}x${IMAGE_CONFIG.height} @ ${IMAGE_CONFIG.quality}% quality...`);
-        const image = await Image.decode(bytes);
+            // Dynamic import of Jimp to avoid top-level require issues if bundling behaves oddly
+            const Jimp = (await import('jimp')).default;
 
-        // Resize logic
-        const resized = image.resize(IMAGE_CONFIG.width, IMAGE_CONFIG.height);
+            // Read buffer
+            const image = await Jimp.read(Buffer.from(bytes));
 
-        // Encode as JPEG
-        processedBytes = await resized.encodeJPEG(IMAGE_CONFIG.quality);
-        console.log(`✅ Resize successful. Size: ${bytes.length} -> ${processedBytes.length} bytes`);
+            image.resize(IMAGE_CONFIG.width, IMAGE_CONFIG.height);   // Resize
+            image.quality(IMAGE_CONFIG.quality);                     // Set JPEG quality
+
+            const resizedBuffer = await image.getBufferAsync(Jimp.MIME_JPEG);
+            processedBytes = new Uint8Array(resizedBuffer);
+
+            console.log(`✅ Resize successful. Size: ${bytes.length} -> ${processedBytes.length} bytes`);
+        } catch (resizeError) {
+            console.error("⚠️ Resizing failed, falling back to original:", resizeError);
+            // We print stack to see WHY it failed if it does
+            if (resizeError.stack) console.error(resizeError.stack);
+        }
 
         const filenameDown = variationCount === 1
             ? `${downFolderPath}image_${timestamp}.${extension}`
