@@ -135,21 +135,16 @@ export async function generateImageVariations(env, imageFile, prompt, count = 2,
 
         // 2. Resize/Compress for _down (Downloadable)
         let processedBytes = bytes;
-        try {
-            console.log(`📐 Resizing to ${IMAGE_CONFIG.width}x${IMAGE_CONFIG.height} @ ${IMAGE_CONFIG.quality}% quality...`);
-            const image = await Image.decode(bytes);
 
-            // Resize (cover/fit logic or force stretch? "downsize" usually implies standardizing)
-            // Using resize() creates a new image. 
-            const resized = image.resize(IMAGE_CONFIG.width, IMAGE_CONFIG.height);
+        console.log(`📐 Resizing to ${IMAGE_CONFIG.width}x${IMAGE_CONFIG.height} @ ${IMAGE_CONFIG.quality}% quality...`);
+        const image = await Image.decode(bytes);
 
-            // Encode as JPEG
-            processedBytes = await resized.encodeJPEG(IMAGE_CONFIG.quality);
-            console.log(`✅ Resize successful. Size: ${bytes.length} -> ${processedBytes.length} bytes`);
-        } catch (resizeError) {
-            console.error("⚠️ Resizing failed, falling back to original:", resizeError);
-            // Fallback means processedBytes remains = bytes
-        }
+        // Resize logic
+        const resized = image.resize(IMAGE_CONFIG.width, IMAGE_CONFIG.height);
+
+        // Encode as JPEG
+        processedBytes = await resized.encodeJPEG(IMAGE_CONFIG.quality);
+        console.log(`✅ Resize successful. Size: ${bytes.length} -> ${processedBytes.length} bytes`);
 
         const filenameDown = variationCount === 1
             ? `${downFolderPath}image_${timestamp}.${extension}`
