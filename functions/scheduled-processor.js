@@ -2,6 +2,7 @@
 // Cloudflare Cron Trigger worker for automated image processing
 import { generateImageVariations } from './lib/gemini';
 import { updateRecord } from './lib/airtable';
+import { generateMailtoLink } from './lib/email';
 
 export async function onRequest({ request, env }) {
     // Handle manual trigger via HTTP POST
@@ -222,15 +223,39 @@ async function processNewRecords(env) {
                         Download_Link: htmlUrl
                     });
                     console.log(`💾 Saved images and Download Link to destination Airtable (ID1) for record ${recordId}`);
+                    
+                    // Generate mailto link for easy email sending
+                    const clientName = fields.User || fields.Email.split('@')[0];
+                    const mailtoLink = generateMailtoLink(
+                        fields.Email,
+                        clientName,
+                        htmlUrl,
+                        allGeneratedAttachments.length
+                    );
+                    console.log(`📧 Mailto link generated for ${fields.Email}`);
+                    
+                    // Add mailto link to results for UI display
+                    results.successCount++;
+                    results.details.push({
+                        recordId,
+                        email: fields.Email,
+                        imagesProcessed: allImages.length,
+                        variationsGenerated: allGeneratedAttachments.length,
+                        downloadLink: htmlUrl,
+                        mailtoLink: mailtoLink,
+                        status: 'success'
+                    });
+                } else {
+                    // No images generated
+                    results.details.push({
+                        recordId,
+                        email: fields.Email,
+                        imagesProcessed: allImages.length,
+                        variationsGenerated: 0,
+                        status: 'success',
+                        note: 'No variations generated'
+                    });
                 }
-
-                results.successCount++;
-                results.details.push({
-                    recordId,
-                    email: fields.Email,
-                    imagesProcessed: allImages.length,
-                    status: 'success'
-                });
 
                 console.log(`✅ Successfully processed record ${recordId}`);
 

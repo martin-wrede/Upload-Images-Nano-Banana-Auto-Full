@@ -26,12 +26,19 @@ function AutoRunner() {
                 addLog('No pending work found.');
             } else if (data.status === 'success') {
                 setStatus('Processing complete! Opening email...');
-                addLog(`Processed record for ${data.email}. Found ${data.links.length} images.`);
+                if (data.downloadLink) {
+                    addLog(`Processed record for ${data.email}. Download Link: ${data.downloadLink}`);
+                }
 
-                // Open Email
-                openEmailClient(data.email, data.user, data.links);
+                // Open Email using mailtoLink from server
+                if (data.mailtoLink) {
+                    addLog(`Opening email client for ${data.email}...`);
+                    window.location.href = data.mailtoLink;
+                } else {
+                    addLog(`⚠️ Success, but no mailto link returned for ${data.email}`);
+                }
             } else {
-                setStatus('Error: ' + data.error);
+                setStatus('Error: ' + (data.error || data.message));
                 addLog('Error: ' + (data.error || data.message));
             }
 
@@ -43,25 +50,6 @@ function AutoRunner() {
             setIsRunning(false);
             setLastRun(new Date());
         }
-    };
-
-    const openEmailClient = (email, user, links) => {
-        const subject = encodeURIComponent("Your High-End AI Food Photos are Ready! 📸✨");
-
-        let body = `Hi ${user},\n\n`;
-        body += `Your AI-enhanced food photos are ready! We have processed them to look professional and appetizing.\n\n`;
-        body += `Here are your download links:\n\n`;
-
-        links.forEach((link, index) => {
-            body += `Image ${index + 1}: ${link}\n`;
-        });
-
-        body += `\n\nEnjoy your new images!\nBest regards,\nThe Automation Team`;
-
-        const mailtoLink = `mailto:${email}?subject=${subject}&body=${encodeURIComponent(body)}`;
-
-        // Open in new window/tab to trigger local client
-        window.location.href = mailtoLink;
     };
 
     // Auto-start on load (optional, currently manual start button for safety)

@@ -492,19 +492,91 @@ function AdminAutomation() {
                             <div style={{ maxHeight: '300px', overflowY: 'auto', backgroundColor: 'white', padding: '1rem', borderRadius: '4px' }}>
                                 {processingResults.details.map((detail, index) => (
                                     <div key={index} style={{
-                                        padding: '0.75rem',
-                                        marginBottom: '0.5rem',
+                                        padding: '1rem',
+                                        marginBottom: '0.75rem',
                                         backgroundColor: detail.status === 'success' ? '#E8F5E9' : '#FFEBEE',
                                         borderRadius: '4px',
                                         borderLeft: `4px solid ${detail.status === 'success' ? '#4CAF50' : '#F44336'}`
                                     }}>
-                                        <div style={{ fontWeight: 'bold' }}>{detail.email}</div>
-                                        <div style={{ fontSize: '0.85rem', color: '#666' }}>
-                                            {detail.status === 'success'
-                                                ? `✅ ${detail.imagesProcessed} images → ${detail.variationsGenerated} variations`
-                                                : `❌ ${detail.reason || 'Processing failed'}`
-                                            }
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
+                                            <div>
+                                                <div style={{ fontWeight: 'bold', marginBottom: '0.25rem' }}>{detail.email}</div>
+                                                <div style={{ fontSize: '0.85rem', color: '#666' }}>
+                                                    {detail.status === 'success'
+                                                        ? `✅ ${detail.imagesProcessed} images → ${detail.variationsGenerated || 0} variations`
+                                                        : `❌ ${detail.reason || detail.note || 'Processing failed'}`
+                                                    }
+                                                </div>
+                                            </div>
                                         </div>
+                                        
+                                        {/* Show action buttons only for successful processing with download link */}
+                                        {detail.status === 'success' && detail.downloadLink && (
+                                            <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem', flexWrap: 'wrap' }}>
+                                                {/* Send Email Button (mailto link) */}
+                                                {detail.mailtoLink && (
+                                                    <a
+                                                        href={detail.mailtoLink}
+                                                        style={{
+                                                            padding: '0.5rem 1rem',
+                                                            backgroundColor: '#9C27B0',
+                                                            color: 'white',
+                                                            border: 'none',
+                                                            borderRadius: '4px',
+                                                            cursor: 'pointer',
+                                                            fontSize: '0.85rem',
+                                                            textDecoration: 'none',
+                                                            display: 'inline-block',
+                                                            fontWeight: 'bold'
+                                                        }}
+                                                        title="Open email client to send download link"
+                                                    >
+                                                        📧 Send Email
+                                                    </a>
+                                                )}
+                                                
+                                                {/* View Download Page Button */}
+                                                <a
+                                                    href={detail.downloadLink}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    style={{
+                                                        padding: '0.5rem 1rem',
+                                                        backgroundColor: '#2196F3',
+                                                        color: 'white',
+                                                        border: 'none',
+                                                        borderRadius: '4px',
+                                                        cursor: 'pointer',
+                                                        fontSize: '0.85rem',
+                                                        textDecoration: 'none',
+                                                        display: 'inline-block'
+                                                    }}
+                                                    title="View download page"
+                                                >
+                                                    🔗 View Download Page
+                                                </a>
+                                                
+                                                {/* Copy Link Button */}
+                                                <button
+                                                    onClick={() => {
+                                                        navigator.clipboard.writeText(detail.downloadLink);
+                                                        alert('✅ Download link copied to clipboard!');
+                                                    }}
+                                                    style={{
+                                                        padding: '0.5rem 1rem',
+                                                        backgroundColor: '#FF9800',
+                                                        color: 'white',
+                                                        border: 'none',
+                                                        borderRadius: '4px',
+                                                        cursor: 'pointer',
+                                                        fontSize: '0.85rem'
+                                                    }}
+                                                    title="Copy download link to clipboard"
+                                                >
+                                                    📋 Copy Link
+                                                </button>
+                                            </div>
+                                        )}
                                     </div>
                                 ))}
                             </div>

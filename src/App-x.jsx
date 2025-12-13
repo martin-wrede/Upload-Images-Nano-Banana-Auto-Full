@@ -1,7 +1,5 @@
-
-
 import React, { useState } from 'react';
-import FileUploader from './FileUploader'; // Import the new component
+
 
 const PACKAGES = {
   test: { title: 'Test Package', limit: 2, description: 'Please upload 2 test images.', column: 'Image_Upload' },
@@ -12,8 +10,9 @@ const PACKAGES = {
 
 function App() {
   const [prompt, setPrompt] = useState('');
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const [files, setFiles] = useState([]); // Holds both R2 loaded files and Drag & Drop files
+  const [files, setFiles] = useState([]);
   const [results, setResults] = useState([]);
   const [variationCount, setVariationCount] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
@@ -29,57 +28,7 @@ function App() {
 
   const [selectedImageIndex, setSelectedImageIndex] = useState("");
 
-  // --- HELPER: Correct Image Orientation (Same as App.jsx) ---
-  const correctImageOrientation = async (file) => {
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const img = new Image();
-        img.onload = () => {
-          const canvas = document.createElement('canvas');
-          const ctx = canvas.getContext('2d');
-          canvas.width = img.width;
-          canvas.height = img.height;
-          ctx.drawImage(img, 0, 0);
-          canvas.toBlob((blob) => {
-            const correctedFile = new File([blob], file.name, {
-              type: file.type,
-              lastModified: Date.now(),
-            });
-            resolve(correctedFile);
-          }, file.type);
-        };
-        img.src = e.target.result;
-      };
-      reader.readAsDataURL(file);
-    });
-  };
-
-  // --- HANDLER: Drag & Drop Files ---
-  const handleFilesSelected = async (incomingFiles) => {
-    // Check total limit (Existing files + New files)
-    if (files.length + incomingFiles.length > currentPackage.limit) {
-      alert(`Limit exceeded. You can only have a total of ${currentPackage.limit} images in the workspace for the ${currentPackage.title}.`);
-      return;
-    }
-
-    setLoadingImages(true); // Re-use loading state for visual feedback
-    try {
-      const correctedFiles = await Promise.all(
-        incomingFiles.map(file => correctImageOrientation(file))
-      );
-
-      // Append new files to existing files (allows mixing R2 files + Drag Drop)
-      setFiles(prevFiles => [...prevFiles, ...correctedFiles]);
-    } catch (error) {
-      console.error("Error processing images:", error);
-      alert("Error processing images.");
-    } finally {
-      setLoadingImages(false);
-    }
-  };
-
-  // --- HANDLER: Load images from R2 folder ---
+  // Load images from R2 folder
   const loadImagesFromR2 = async () => {
     if (!email) {
       alert('Please enter your email');
@@ -88,6 +37,7 @@ function App() {
 
     setLoadingImages(true);
     try {
+      // Call list-images endpoint
       const response = await fetch('/list-images', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -110,17 +60,18 @@ function App() {
         const imgResponse = await fetch(img.url);
         const blob = await imgResponse.blob();
 
+        // Ensure mime type is set correctly
         const mimeType = blob.type || img.url.match(/\.(jpg|jpeg|png|gif|webp)$/i)
           ? `image/${img.url.match(/\.(jpg|jpeg|png|gif|webp)$/i)[1].replace('jpg', 'jpeg')}`
           : 'image/jpeg';
 
-        return new File([blob], img.filename, { type: mimeType });
+        const file = new File([blob], img.filename, { type: mimeType });
+        console.log('📦 Created File:', { name: file.name, size: file.size, type: file.type });
+        return file;
       });
 
       const loadedFiles = await Promise.all(filePromises);
-
-      // Overwrite or Append? Here we overwrite to ensure we see exactly what is in the cloud folder
-      // If you prefer to append, change to: setFiles(prev => [...prev, ...loadedFiles]);
+      console.log(`✅ Loaded ${loadedFiles.length} files:`, loadedFiles.map(f => ({ name: f.name, type: f.type })));
       setFiles(loadedFiles);
       alert(`✅ Loaded ${loadedFiles.length} images from R2 folder`);
 
@@ -146,6 +97,25 @@ function App() {
         return;
       }
 
+      // Prompt is now optional - backend will use default if empty
+      /*
+      /*
+      if (!prompt || prompt.trim() === '') {
+        alert("Please enter a prompt to describe the modification.");
+        setIsLoading(false);
+        return;
+      }
+      */
+
+      console.log('📤 Preparing to send:');
+      console.log('  - Prompt:', prompt);
+      console.log('  - Selected file:', selectedFile);
+      console.log('  - File details:', {
+        name: selectedFile.name,
+        size: selectedFile.size,
+        type: selectedFile.type
+      });
+
       const formData = new FormData();
       formData.append('prompt', prompt);
       formData.append('image', selectedFile, selectedFile.name);
@@ -153,11 +123,12 @@ function App() {
       formData.append('count', variationCount);
       formData.append('user', 'Martin');
 
+      console.log('📤 FormData created, sending to /ai...');
       body = formData;
 
       const response = await fetch('/ai', {
         method: 'POST',
-        headers: headers,
+        headers: headers, // Empty for FormData
         body: body,
       });
 
@@ -189,7 +160,16 @@ function App() {
   };
 
 
+  // Modify all images with the same prompt
   const modifyAllImages = async () => {
+    // Prompt is now optional
+    /*
+    if (!prompt || prompt.trim() === '') {
+      alert("Please enter a prompt to describe the modification.");
+      return;
+    }
+    */
+
     if (files.length === 0) {
       alert("No images loaded. Please load images first.");
       return;
@@ -248,16 +228,15 @@ function App() {
 
 
   const saveToAirtable = async (prompt, imageUrl, user = 'Anonymous', email = '', files = [], uploadColumn = 'Image_Upload2') => {
+    console.log("📦 Saving to Airtable:", { prompt, imageUrl, user, email, files, uploadColumn });
     try {
       const formData = new FormData();
       formData.append('prompt', prompt);
       formData.append('imageUrl', imageUrl);
       formData.append('user', user);
       formData.append('email', email);
-      formData.append('uploadColumn', uploadColumn);
+      formData.append('uploadColumn', uploadColumn); // Send target column
 
-      // Note: In App2 context, we might not want to re-upload the original 'files' to R2 every time we save an AI result.
-      // But preserving existing logic for consistency.
       files.forEach((file) => {
         formData.append('images', file);
       });
@@ -279,9 +258,8 @@ function App() {
       <h1>{currentPackage.title}</h1>
       <p>{currentPackage.description}</p>
 
-      {/* --- R2 LOADER SECTION --- */}
-      <div style={{ marginBottom: '1rem', border: '2px solid #4CAF50', padding: '1rem', borderRadius: '8px' }}>
-        <h3 style={{ marginTop: 0 }}>Option 1: Load Previous Uploads</h3>
+      <div style={{ marginBottom: '2rem', border: '2px solid #4CAF50', padding: '1rem', borderRadius: '8px' }}>
+        <h3 style={{ marginTop: 0 }}>Load Images from R2</h3>
         <input
           type="email"
           placeholder="Your Email (e.g., martin_wrede@web.de)"
@@ -302,34 +280,20 @@ function App() {
             opacity: loadingImages || !email ? 0.6 : 1
           }}
         >
-          {loadingImages ? 'Loading...' : '📂 Load from Cloud'}
+          {loadingImages ? 'Loading...' : '📂 Find Folder'}
         </button>
+        <p style={{ fontSize: '0.8rem', color: '#666', marginTop: '0.5rem', marginBottom: 0 }}>
+          Will load images from R2 folder: <strong>{email ? email.replace(/[^a-zA-Z0-9]/g, '_') : 'your_email'}</strong>
+        </p>
+        {files.length > 0 && (
+          <p style={{ fontSize: '0.9rem', color: '#4CAF50', marginTop: '0.5rem', marginBottom: 0 }}>
+            ✅ {files.length} images loaded
+          </p>
+        )}
       </div>
 
-      {/* --- DRAG AND DROP SECTION --- */}
-      <div style={{ marginBottom: '2rem' }}>
-        <h3>Option 2: Upload New Images</h3>
-        <FileUploader
-          onFilesSelected={handleFilesSelected}
-          maxFiles={currentPackage.limit}
-          disabled={loadingImages || batchProcessing}
-          description={`Drag & drop here to add to workspace.`}
-        />
-      </div>
-
-      {/* --- WORKSPACE FILE LIST --- */}
-      {files.length > 0 && (
-        <div style={{ marginBottom: '2rem', backgroundColor: '#f9f9f9', padding: '1rem', borderRadius: '8px', border: '1px solid #ddd' }}>
-          <h4 style={{ margin: '0 0 10px 0' }}>📸 Active Workspace Images ({files.length})</h4>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
-            {files.map((file, i) => (
-              <div key={i} style={{ fontSize: '0.8rem', padding: '5px 10px', background: 'white', border: '1px solid #ccc', borderRadius: '4px' }}>
-                {file.name}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      {/** AI image gneration starts here */}
+      {/**  */}
 
       <hr style={{ margin: '2rem 0' }} />
 
@@ -351,6 +315,9 @@ function App() {
               </option>
             ))}
           </select>
+          <p style={{ fontSize: '0.8rem', color: '#666' }}>
+            * Select an uploaded image and enter a prompt to modify it.
+          </p>
         </div>
       )}
 
@@ -367,7 +334,7 @@ function App() {
               checked={variationCount === 1}
               onChange={(e) => setVariationCount(parseInt(e.target.value))}
             />
-            {' '}1 image
+            {' '}1 image (fast, cheaper)
           </label>
           <label style={{ cursor: 'pointer' }}>
             <input
@@ -396,53 +363,47 @@ function App() {
         placeholder="Enter your prompt (optional, default will be used)"
         value={prompt}
         onChange={e => setPrompt(e.target.value)}
-        disabled={selectedImageIndex === "" && !batchProcessing}
+        disabled={selectedImageIndex === ""}
         rows={4}
         style={{
           padding: '0.5rem',
           width: '300px',
-          backgroundColor: (selectedImageIndex === "" && files.length === 0) ? '#f0f0f0' : 'white',
+          backgroundColor: selectedImageIndex === "" ? '#f0f0f0' : 'white',
           fontFamily: 'Arial, sans-serif',
           fontSize: '14px',
           resize: 'vertical'
         }}
       />
+      <button
+        onClick={generateImage}
+        disabled={isLoading}
+        style={{ marginLeft: '1rem', padding: '0.5rem 1rem' }}
+      >
 
-      <div style={{ marginTop: '1rem' }}>
+        {isLoading ? 'Processing...' : 'Modify Image with Gemini'}
+      </button>
+
+
+      {files.length > 1 && (
         <button
-          onClick={generateImage}
-          disabled={isLoading || selectedImageIndex === ""}
+          onClick={modifyAllImages}
+          disabled={batchProcessing}
           style={{
+            marginLeft: '1rem',
             padding: '0.5rem 1rem',
-            backgroundColor: (isLoading || selectedImageIndex === "") ? '#ccc' : '#2196F3',
+            backgroundColor: '#FF9800',
             color: 'white',
             border: 'none',
-            cursor: 'pointer',
-            marginRight: '1rem'
+            cursor: batchProcessing ? 'not-allowed' : 'pointer',
+            opacity: batchProcessing ? 0.6 : 1
           }}
         >
-          {isLoading ? 'Processing...' : 'Modify Selected Image'}
+          {batchProcessing
+            ? `Processing ${batchProgress.current}/${batchProgress.total}...`
+            : `🚀 Modify All ${files.length} Images`
+          }
         </button>
-
-        {files.length > 1 && (
-          <button
-            onClick={modifyAllImages}
-            disabled={batchProcessing}
-            style={{
-              padding: '0.5rem 1rem',
-              backgroundColor: batchProcessing ? '#ccc' : '#FF9800',
-              color: 'white',
-              border: 'none',
-              cursor: batchProcessing ? 'not-allowed' : 'pointer',
-            }}
-          >
-            {batchProcessing
-              ? `Processing ${batchProgress.current}/${batchProgress.total}...`
-              : `🚀 Modify All ${files.length} Images`
-            }
-          </button>
-        )}
-      </div>
+      )}
 
       {/* Progress Bar for Batch Processing */}
       {batchProcessing && (
@@ -489,6 +450,11 @@ function App() {
                   alt={`Variation ${index + 1}`}
                   style={{ width: '100%', height: 'auto' }}
                 />
+                {results.length > 1 && (
+                  <p style={{ textAlign: 'center', margin: '0.5rem 0 0 0' }}>
+                    Variation {index + 1}
+                  </p>
+                )}
               </div>
             ))}
           </div>
@@ -534,6 +500,11 @@ function App() {
                           alt={`Result ${imgIndex + 1}`}
                           style={{ width: '100%', height: 'auto', borderRadius: '4px' }}
                         />
+                        {result.results.length > 1 && (
+                          <p style={{ fontSize: '0.7rem', textAlign: 'center', margin: '0.25rem 0 0 0' }}>
+                            Variation {imgIndex + 1}
+                          </p>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -543,6 +514,7 @@ function App() {
           </div>
         </div>
       )}
+
 
     </div>
   );
