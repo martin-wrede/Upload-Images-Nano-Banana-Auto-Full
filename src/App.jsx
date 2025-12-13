@@ -56,6 +56,7 @@ function App() {
   };
 
   // --- HANDLER: Drag & Drop Files ---
+
   const handleFilesSelected = async (incomingFiles) => {
     // Check total limit (Existing files + New files)
     if (files.length + incomingFiles.length > currentPackage.limit) {
